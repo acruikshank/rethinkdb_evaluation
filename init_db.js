@@ -1,3 +1,6 @@
+var r = require('rethinkdb');
+var _ = require('underscore');
+
 function choose(list) { return list[ (Math.random() * list.length)|0 ]; }
 function Chooser( objects ) {
   var choices=[], weights=[0], totalWeight=0, chooser={};
@@ -19,6 +22,18 @@ function Chooser( objects ) {
   return chooser;
 }
 
+function bind(ctx, ops, next) {
+  if (ops.length < 1) return next(null, ctx);
+  ops[0](ctx, function(err, ctx) { 
+    if (err) next(err);
+    bind(ctx, ops.slice(1), next);
+  });
+}
+
+function noop(ctx, next) {
+  return function(err) { next(err,ctx) }
+}
+
 function digits(n) { return ((Math.random()*Math.pow(10,n))|0).toString() }
 
 var surnames = "Smith,Brown,Lee,Wilson,Martin,Patel,Taylor,Wong,Campbell,Williams,Thompson,Jones".split(',');
@@ -38,81 +53,95 @@ var NUM_CUSTOMERS = 200;
 var END_DATE      = new Date(2014,3,11);
 var DAYS          = 30;
 
-function bind(ctx, f1, f2, f3, etc) {
-  if (!f2) return f1(ctx);
-  var rest = [ctx].concat(Array.prototype.slice.call(arguments, 2));
-  f1(ctx, function() { bind.apply(null, rest); });
-}
 
-var r = require('rethinkdb');
-r.connect( {host: 'localhost', port: 28015}, function(err, conn) {
-    if (err) throw err;
-    bind({connection:conn}, listTables, createTables, dropData, initializeDatabase, close);
-})
+bind( {}, [
+  connect,
+  listTables, 
+  createCustomersTable, 
+  createVisitsTable,
+  createCustomers], 
+  close);
 
-function listTables(ctx, next) {
-  r.db('test').tableList().run(ctx.connection, function(err, result) {
-    if (err) throw err;
-    ctx.hasTable = !!(~result.indexOf('customers'));
-    next()
+
+function connect(ctx, next) {
+  console.log('connecting');
+  r.connect( {host: 'localhost', port: 28015}, function(err, conn) {
+    next(err, err || _({}).extend(ctx,{connection:conn}) );
   })
 }
 
-function createTables(ctx, next) {
-  if (ctx.hasTable)
-    return next();
-
-  r.db('test').tableCreate('customers').run(ctx.connection, function(err, result) {
-    if (err) throw err;
-    next();
-  })  
+function listTables(ctx, next) {
+  r.db('test').tableList().run(ctx.connection, function(err, result) {
+    next(err, err || _({}).extend(ctx,{tables:_.object(result, result)}));
+  })
 }
 
-function dropData(ctx, next) {
-  r.db('test').table('customers').delete().run(ctx.connection, function(err, result) {
-    if (err) throw err;
-    next();
-  })  
+function createCustomersTable(ctx, next) {
+  if (ctx.tables.customers)
+    return r.table('customers').delete().run(ctx.connection, noop(ctx,next) ); 
+
+  console.log('creating customers table');
+  r.tableCreate('customers').run(ctx.connection, noop(ctx,next) );
 }
 
-function initializeDatabase(ctx, next) {
+function createVisitsTable(ctx, next) {
+  if (ctx.tables.visits)
+    return r.table('visits').delete().run(ctx.connection, noop(ctx,next) );
 
-  var customers = [];
-  for (var c=0; c<NUM_CUSTOMERS; c++) {
-    var customer = {};
-    customer.firstName = choose(firstNames);
-    customer.lastName = choose(surnames);
-    customer.email = customer.firstName.substr(0,1).toLowerCase() + customer.lastName.toLowerCase() + '@' + choose(domains);
-    customer.address = {
-      street: digits(3) + ' ' + choose(streets) + ' Street',
-      state: 'TN',
-      zip: zipCodes.choose()
-    }
-    customer.purchases = [];
-    customer.webVisits = [];
-    for (var d=0; d <= DAYS; d++ ) {
-      var date = new Date(END_DATE.getTime() - (DAYS-d)*24*3600000)
-      var visits = webVisits.choose()|0;
-      if (visits > 0)
-        customer.webVisits.push({ date: date, hits: visits, });
+  console.log('creating visits table');
+  r.tableCreate('visits').run(ctx.connection, noop(ctx,next) );
+}
 
-      var purchaseCount = (visits > 0 ? withWebVisits : withoutWebVisits).choose();
-      for (var i=0; i < purchaseCount; i++)
-        customer.purchases.push({
-          date: date,
-          sku: choose(skus),
-          name: choose(brands),
-          amount: ((Math.random()*3000)|0) / 100
-        })
-    }
-    customers.push(customer);
+function createCustomer(ctx, next) {
+  var customer = {};
+  customer.firstName = choose(firstNames);
+  customer.lastName = choose(surnames);
+  customer.email = customer.firstName.substr(0,1).toLowerCase() + customer.lastName.toLowerCase() + '@' + choose(domains);
+  customer.address = {
+    street: digits(3) + ' ' + choose(streets) + ' Street',
+    state: 'TN',
+    zip: zipCodes.choose()
   }
-  r.table('customers').insert(customers).run(ctx.connection, function(err,result) {
-    if (err) throw err;
-    next();
+  customer.purchases = [];
+  for (var d=0; d <= DAYS; d++ ) {
+    var date = new Date(END_DATE.getTime() - (DAYS-d)*24*3600000)
+
+    var purchaseCount = withWebVisits.choose();
+    for (var i=0; i < purchaseCount; i++)
+      customer.purchases.push({
+        date: date,
+        sku: choose(skus),
+        name: choose(brands),
+        amount: ((Math.random()*3000)|0) / 100
+      })
+  }
+
+  r.table('customers').insert(customer).run(ctx.connection, function(err, result) {
+    if (err) return next(err);
+    createVisits(_({}).extend(ctx, {customerKey:result.generated_keys[0]} ), next);
   });
 }
 
-function close( ctx ) {
+function createVisits(ctx, next) {
+  var visits = [];
+  for (var d=0; d <= DAYS; d++ ) {
+    var date = new Date(END_DATE.getTime() - (DAYS-d)*24*3600000)
+    var count = webVisits.choose()|0;
+    if (count > 0)
+      visits.push({ customer:ctx.customerKey, date: date, hits: count });
+  }
+  r.table('visits').insert(visits).run(ctx.connection, noop(ctx,next) );
+}
+
+function createCustomers(ctx, next) {
+  console.log('adding', NUM_CUSTOMERS, 'customers');
+
+  var ops = _.range(NUM_CUSTOMERS).map(function(n) { return createCustomer});
+  bind(ctx, ops, next)
+}
+
+function close( err, ctx ) {
+  console.log('closing connection');
+  if (err) console.error(err);
   ctx.connection.close();
 }
