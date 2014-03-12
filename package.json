@@ -1,0 +1,21 @@
+{
+  "name": "rethinkdb_evaluation",
+  "version": "0.0.1",
+  "description": "An evaluation project for RethinkDB",
+  "main": "server.js",
+  "scripts": {
+    "test": "mocha"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/acruikshank/rethinkdb_evaluation.git"
+  },
+  "author": "Alex Cruikshank",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/acruikshank/rethinkdb_evaluation/issues"
+  },
+  "dependencies": {
+    "rethinkdb": "~1.11.0-4"
+  }
+}
