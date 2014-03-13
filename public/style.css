@@ -1,0 +1,17 @@
+body {
+  padding-top: 50px;
+}
+
+.row {
+  margin-bottom: 10px;
+}
+
+
+form {
+  clear: right;
+}
+
+form.inactive {
+  height: 0px;
+  overflow: hidden;
+}
