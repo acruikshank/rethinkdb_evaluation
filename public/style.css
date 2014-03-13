@@ -15,3 +15,20 @@ form.inactive {
   height: 0px;
   overflow: hidden;
 }
+
+.productsByZip {
+  margin-top: 20px;
+}
+
+svg {
+  padding: 10px 0 0 10px;
+  vertical-align: top;
+}
+
+svg.legend {
+  float: left;
+}
+
+.arc {
+  stroke: #fff;
+}

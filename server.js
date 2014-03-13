@@ -21,6 +21,26 @@ app.get( '/', dbConnect, withAllCustomers, function( request, response ) {
   response.render('customer', {customers:request.customers});
 });
 
+app.get( '/products_by_zip', dbConnect, function( request, response ) {
+  response.render('products_by_zip', {});
+});
+
+app.get( '/products_by_zip/product_counts', dbConnect, function( request, response, next ) {
+  r.table("customers").hasFields('purchases').concatMap(function(customer) {
+    return customer('purchases').map(function(purchase) {
+      return {zip:customer('address')('zip'), product:purchase('name')};
+    });
+  }).groupBy('zip','product', r.count).run(request.connection, function(err, result) {
+    if (err) return next(err);
+
+    var byzip = result.reduce( function(acc, r) { 
+      (acc[r.group.zip] = acc[r.group.zip] || {zip:r.group.zip})[r.group.product] = r.reduction; 
+      return acc;
+    }, {});
+    response.send( _.values(byzip) );
+  })
+})
+
 app.post( '/customer', dbConnect, function( request, response, next ) {
   request.body.customer.purchases = [];
   r.table('customers').insert(request.body.customer).run(request.connection, function(err, result) {
@@ -41,16 +61,14 @@ app.post( '/customer/:id/add-purchase', dbConnect, function( request, response, 
           amount: 34.32
         })
   }, {returnVals:true}).run(request.connection, function(err, result) {
-    if (err)
-      return next(err);
+    if (err) return next(err);
     response.send(result.new_val);
   })
 })
 
 app.post( '/customer/:id/delete', dbConnect, function( request, response, next ) {
   r.table('customers').get(request.params.id).delete().run(request.connection, function(err) {
-    if (err)
-      return next(err);
+    if (err) return next(err);
     response.send(204);    
   })
 })
