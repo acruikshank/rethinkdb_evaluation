@@ -73,6 +73,35 @@ app.post( '/customer/:id/delete', dbConnect, function( request, response, next )
   })
 })
 
+app.get( '/top_customers', dbConnect, function( request, response, next ) {
+  r.table('customers').hasFields('purchases').map(function(customer) {
+    return {
+      id: customer('id'),
+      firstName: customer('firstName'),
+      lastName: customer('lastName'),
+      purchaseTotal: customer('purchases').reduce(function(acc,purchase) {
+          return acc.add(purchase('amount'));
+        }, 0)
+    }
+  })
+  .orderBy(r.desc('purchaseTotal')).limit(10)
+  .innerJoin(
+    r.table('visits').groupBy('customer', r.sum('hits')), 
+    function( customer, visit ) {
+      return customer('id').eq(visit('group')('customer'));
+    }
+  ).map({
+    id:r.row('left')('id'), 
+    firstName:r.row('left')('firstName'), 
+    lastName:r.row('left')('lastName'), 
+    purchases:r.row('left')('purchaseTotal'), 
+    hits:r.row('right')('reduction')
+  }).run(request.connection, function(err, result) {
+    if (err) return next(err);
+    response.render( 'top_customers', {customers:result} )
+  })
+})
+
 // DATABASE MIDDLEWARE
 
 function withAllCustomers( request, response, next ) {
