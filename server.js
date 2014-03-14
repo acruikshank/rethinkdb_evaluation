@@ -57,8 +57,8 @@ app.post( '/customer/:id/add-purchase', dbConnect, function( request, response, 
     purchases: r.row('purchases').append({
           date: new Date(),
           sku: 23023902,
-          name: "Cadbury's cocoa",
-          amount: 34.32
+          name: "Patum Peperium",
+          amount: 14.58
         })
   }, {returnVals:true}).run(request.connection, function(err, result) {
     if (err) return next(err);

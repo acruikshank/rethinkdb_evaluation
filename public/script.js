@@ -109,11 +109,12 @@ rdb_eval = (function($) {
   }
 
   function renderProductsByZip(data) {
+    console.log("DATA", data)
     var radius = 74,
         padding = 10;
 
     var color = d3.scale.ordinal()
-        .range(["#00A0B0", "#6A4A3C", "#CC333F", "#EB6841", "#EDC951", "#69D2E7", "#A7DBD8", "#E0E4CC", "#F38630", "#FA6900"]);
+        .range(["#00A0B0", "#6A4A3C", "#CC333F", "#EB6841", "#EDC951", "#69D2E7", "#A7DBD8", "#E0E4CC", "#F38630", "#FA6900 "]);
 
     var arc = d3.svg.arc()
         .outerRadius(radius)
@@ -121,13 +122,13 @@ rdb_eval = (function($) {
 
     var pie = d3.layout.pie()
         .sort(null)
-        .value(function(d) { return d.population; });
+        .value(function(d) { return d.count; });
 
     color.domain(d3.keys(data[0]).filter(function(key) { return key !== "zip"; }));
 
     data.forEach(function(d) {
-      d.ages = color.domain().map(function(name) {
-        return {name: name, population: +d[name]};
+      d.products = color.domain().map(function(name) {
+        return {name: name, count: +d[name] || 0 };
       });
     });
 
@@ -161,7 +162,7 @@ rdb_eval = (function($) {
         .attr("transform", "translate(" + radius + "," + radius + ")");
 
     svg.selectAll(".arc")
-        .data(function(d) { return pie(d.ages); })
+        .data(function(d) { return pie(d.products); })
       .enter().append("path")
         .attr("class", "arc")
         .attr("d", arc)
