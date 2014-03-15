@@ -79,8 +79,8 @@ app.get( '/top_customers', dbConnect, function( request, response, next ) {
       id: customer('id'),
       firstName: customer('firstName'),
       lastName: customer('lastName'),
-      purchaseTotal: customer('purchases').reduce(function(acc,purchase) {
-          return acc.add(purchase('amount'));
+      purchaseTotal: customer('purchases')('amount').reduce(function(acc,amount) {
+          return acc.add(amount);
         }, 0)
     }
   })

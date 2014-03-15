@@ -135,7 +135,7 @@ rdb_eval = (function($) {
     var legend = d3.select(".productsByZip").append("svg")
         .attr("class", "legend")
         .attr("width", radius * 3)
-        .attr("height", radius * 4)
+        .attr("height", radius * 8)
       .selectAll("g")
         .data(color.domain().slice().reverse())
       .enter().append("g")
